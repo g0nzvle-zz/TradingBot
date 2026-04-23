@@ -41,3 +41,11 @@ def test_price_is_last_close():
     df = make_fake_ohlcv()
     result = calculate_indicators(df)
     assert abs(result["price"] - float(df["Close"].iloc[-1])) < 0.01
+
+def test_no_nan_values_in_output():
+    import math
+    df = make_fake_ohlcv(n=30)  # short data, may produce NaN in some indicators
+    result = calculate_indicators(df)
+    for key, value in result.items():
+        if value is not None:
+            assert not math.isnan(value), f"Key '{key}' returned NaN instead of None"

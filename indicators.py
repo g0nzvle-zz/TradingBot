@@ -2,6 +2,16 @@ import yfinance as yf
 import pandas as pd
 import ta
 from typing import Optional
+import math
+
+
+def _safe_float(value) -> Optional[float]:
+    """Convert to float, returning None if value is NaN or unconvertible."""
+    try:
+        f = float(value)
+        return None if math.isnan(f) else f
+    except (TypeError, ValueError):
+        return None
 
 
 def fetch_ohlcv(ticker: str, period: str = "3mo", interval: str = "1d") -> Optional[pd.DataFrame]:
@@ -70,16 +80,16 @@ def calculate_indicators(df: pd.DataFrame) -> dict:
         volume_sma20 = None
 
     return {
-        "price": float(close.iloc[-1]),
-        "rsi": rsi,
-        "macd": macd,
-        "macd_signal": macd_signal,
-        "macd_hist": macd_hist,
-        "bb_upper": bb_upper,
-        "bb_lower": bb_lower,
-        "bb_mid": bb_mid,
-        "ema20": ema20,
-        "ema50": ema50,
-        "volume": float(volume.iloc[-1]),
-        "volume_sma20": volume_sma20,
+        "price": _safe_float(close.iloc[-1]),
+        "rsi": _safe_float(rsi),
+        "macd": _safe_float(macd),
+        "macd_signal": _safe_float(macd_signal),
+        "macd_hist": _safe_float(macd_hist),
+        "bb_upper": _safe_float(bb_upper),
+        "bb_lower": _safe_float(bb_lower),
+        "bb_mid": _safe_float(bb_mid),
+        "ema20": _safe_float(ema20),
+        "ema50": _safe_float(ema50),
+        "volume": _safe_float(volume.iloc[-1]),
+        "volume_sma20": _safe_float(volume_sma20),
     }
