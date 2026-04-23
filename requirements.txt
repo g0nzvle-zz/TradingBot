@@ -1,0 +1,8 @@
+yfinance>=0.2.40
+# pandas-ta>=0.3.14b  # NOTE: Not compatible with Python 3.14 yet (requires numba<0.61.2 which doesn't support 3.14)
+praw>=7.7.1
+vaderSentiment>=3.3.2
+feedparser>=6.0.11
+groq>=0.9.0
+requests>=2.31.0
+pytest>=8.0.0
