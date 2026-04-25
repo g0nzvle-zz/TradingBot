@@ -1,12 +1,12 @@
 import os
 
 # --- API Keys (loaded from environment variables / GitHub Secrets) ---
+from dotenv import load_dotenv
+load_dotenv()
+
 GROQ_API_KEY = os.getenv("GROQ_API_KEY", "")
 TELEGRAM_TOKEN = os.getenv("TELEGRAM_TOKEN", "")
 TELEGRAM_CHAT_ID = os.getenv("TELEGRAM_CHAT_ID", "")
-REDDIT_CLIENT_ID = os.getenv("REDDIT_CLIENT_ID", "")
-REDDIT_CLIENT_SECRET = os.getenv("REDDIT_CLIENT_SECRET", "")
-REDDIT_USER_AGENT = "TradingBot/1.0 by FelipeGonzalez"
 
 # --- Watchlist ---
 LONG_TERM_TICKERS = ["SPY", "QQQ", "VTI", "SCHD", "VWO"]
@@ -24,8 +24,6 @@ SWING_UNIVERSE = [
     "WFC", "BAC", "C", "MS",
     "COIN", "SHOP", "SQ", "PYPL",
 ]
-
-SUBREDDITS = ["stocks", "investing", "wallstreetbets", "StockMarket"]
 
 RSS_FEEDS = [
     "https://feeds.reuters.com/reuters/businessNews",

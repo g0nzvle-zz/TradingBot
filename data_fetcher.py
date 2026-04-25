@@ -1,85 +1,90 @@
 import feedparser
-import praw
-from datetime import datetime, timedelta
-from vaderSentiment.vaderSentiment import SentimentIntensityAnalyzer
-from config import (SUBREDDITS, RSS_FEEDS, REDDIT_CLIENT_ID,
-                    REDDIT_CLIENT_SECRET, REDDIT_USER_AGENT)
+import requests
+import yfinance as yf
 from indicators import fetch_ohlcv, calculate_indicators
+from config import RSS_FEEDS
 
 
 def get_news_headlines() -> list:
-    """Fetch top financial news headlines from RSS feeds. Returns up to 10."""
-    headlines = []
-    for url in RSS_FEEDS:
+    """Fetch top financial news headlines from RSS feeds. Returns up to 10 dicts with title and url."""
+    results = []
+    for feed_url in RSS_FEEDS:
         try:
-            feed = feedparser.parse(url)
+            feed = feedparser.parse(feed_url)
             for entry in feed.entries[:5]:
-                headlines.append(entry.title)
+                results.append({
+                    "title": entry.title,
+                    "url": getattr(entry, "link", ""),
+                })
         except Exception:
             continue
-    return headlines[:10]
+    return results[:10]
 
 
-def get_reddit_sentiment(ticker: str) -> dict:
+def get_fear_greed_index() -> dict:
     """
-    Search recent Reddit posts for ticker mentions and analyze sentiment.
-    Returns dict with mention count, sentiment label, and positive percentage.
+    Fetch CNN/Alternative.me Fear & Greed Index (0=extreme fear, 100=extreme greed).
+    Returns dict with value (int), label (English), and label_es (Spanish).
+    Falls back to neutral (50) on any error.
     """
-    reddit = praw.Reddit(
-        client_id=REDDIT_CLIENT_ID,
-        client_secret=REDDIT_CLIENT_SECRET,
-        user_agent=REDDIT_USER_AGENT,
-    )
-    analyzer = SentimentIntensityAnalyzer()
-    cutoff = datetime.utcnow() - timedelta(hours=48)
-
-    mentions = 0
-    scores = []
-
-    for subreddit_name in SUBREDDITS:
-        try:
-            subreddit = reddit.subreddit(subreddit_name)
-            for post in subreddit.search(ticker, time_filter="week", limit=20):
-                post_time = datetime.utcfromtimestamp(post.created_utc)
-                if post_time < cutoff:
-                    continue
-                text = f"{post.title} {post.selftext}"
-                if ticker.upper() in text.upper():
-                    mentions += 1
-                    score = analyzer.polarity_scores(text)["compound"]
-                    scores.append(score)
-        except Exception:
-            continue
-
-    if not scores:
-        return {"ticker": ticker, "mentions": 0,
-                "sentiment": "neutro", "positive_pct": 0}
-
-    avg = sum(scores) / len(scores)
-    positive_pct = int(sum(1 for s in scores if s > 0.05) / len(scores) * 100)
-    sentiment = ("positivo" if avg > 0.05
-                 else "negativo" if avg < -0.05
-                 else "neutro")
-
-    return {
-        "ticker": ticker,
-        "mentions": mentions,
-        "sentiment": sentiment,
-        "positive_pct": positive_pct,
+    labels_es = {
+        "Extreme Fear": "Miedo Extremo",
+        "Fear": "Miedo",
+        "Neutral": "Neutral",
+        "Greed": "Codicia",
+        "Extreme Greed": "Codicia Extrema",
     }
+    try:
+        response = requests.get("https://api.alternative.me/fng/", timeout=10)
+        data = response.json()["data"][0]
+        value = int(data["value"])
+        label = data["value_classification"]
+        return {"value": value, "label": label, "label_es": labels_es.get(label, label)}
+    except Exception:
+        return {"value": 50, "label": "Neutral", "label_es": "Neutral"}
+
+
+def get_ticker_news(ticker: str) -> list:
+    """
+    Fetch recent news for a specific ticker via yfinance.
+    Returns up to 5 dicts with title and url. Handles both old and new yfinance formats.
+    """
+    try:
+        items = yf.Ticker(ticker).news or []
+        results = []
+        for item in items[:5]:
+            title = url = None
+            if isinstance(item.get("content"), dict):
+                content = item["content"]
+                title = content.get("title")
+                url = ((content.get("canonicalUrl") or {}).get("url") or
+                       (content.get("clickThroughUrl") or {}).get("url"))
+            if not title:
+                title = item.get("title")
+            if not url:
+                url = item.get("link", "")
+            if title:
+                results.append({"title": title, "url": url or ""})
+        return results
+    except Exception:
+        return []
 
 
 def get_market_context() -> dict:
-    """Fetch broad market indicators: SPY price/RSI/MACD and VIX level."""
+    """Fetch broad market indicators: SPY price/RSI/MACD, VIX, and Fear & Greed Index."""
     spy_df = fetch_ohlcv("SPY", period="1mo")
     vix_df = fetch_ohlcv("^VIX", period="5d")
 
     spy_ind = calculate_indicators(spy_df) if spy_df is not None else {}
     vix_price = float(vix_df["Close"].iloc[-1]) if vix_df is not None else None
 
+    fg = get_fear_greed_index()
+
     return {
         "spy_price": spy_ind.get("price"),
         "spy_rsi": spy_ind.get("rsi"),
         "spy_macd_hist": spy_ind.get("macd_hist"),
         "vix": vix_price,
+        "fear_greed_value": fg["value"],
+        "fear_greed_label": fg["label_es"],
     }
